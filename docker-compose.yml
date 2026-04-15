@@ -4,8 +4,8 @@ services:
     image: minio/minio:latest
     container_name: cc_minio
     ports:
-      - "9000:9000" # API Port
-      - "9001:9001" # Web Console Port
+      - "9000:9000"
+      - "9001:9001"
     environment:
       MINIO_ROOT_USER: admin
       MINIO_ROOT_PASSWORD: password123
@@ -24,27 +24,34 @@ services:
       - redis_data:/data
     restart: unless-stopped
 
-  # 3. Kafka: Our Message Broker (The Ticket Rail)
-  # 3. Kafka: Our Message Broker (The Ticket Rail)
- # 3. Kafka: Our Message Broker (The Ticket Rail)
+  # 3. ZooKeeper (Required to manage Kafka)
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: cc_zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    restart: unless-stopped
+
+  # 4. Kafka: Our Message Broker (The Ticket Rail)
   kafka:
-    image: apache/kafka:latest
+    image: confluentinc/cp-kafka:7.6.0
     container_name: cc_kafka
+    depends_on:
+      - zookeeper
     ports:
       - "9092:9092"
     environment:
-      KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
     volumes:
-      - kafka_data:/tmp/kafka-logs
+      - kafka_data:/var/lib/kafka/data
     restart: unless-stopped
 
 volumes:
