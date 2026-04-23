@@ -36,6 +36,7 @@ services:
     restart: unless-stopped
 
   # 4. Kafka: Our Message Broker (The Ticket Rail)
+# 4. Kafka: Our Message Broker (The Ticket Rail)
   kafka:
     image: confluentinc/cp-kafka:7.6.0
     container_name: cc_kafka
@@ -46,12 +47,30 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      # Create two doorways: Internal (Docker) and External (Windows)
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
     volumes:
       - kafka_data:/var/lib/kafka/data
+    restart: unless-stopped
+
+  # 5. FFmpeg Worker (The Prep Chef)
+  ffmpeg_worker:
+    build:
+      context: ./src/worker
+    container_name: cc_ffmpeg_worker
+    depends_on:
+      - kafka
+      - minio
+    environment:
+      # Tell the worker to use the INTERNAL doorway
+      - KAFKA_BROKER=kafka:29092 
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=admin
+      - MINIO_SECRET_KEY=password123
     restart: unless-stopped
 
 volumes:
