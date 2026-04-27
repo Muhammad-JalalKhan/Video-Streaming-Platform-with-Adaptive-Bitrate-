@@ -7,7 +7,7 @@ minio_client = Minio(
     access_key="admin",
     secret_key="password123",
     secure=False
-)
+) 
 
 BUCKET_NAME = "processed-videos"
 
