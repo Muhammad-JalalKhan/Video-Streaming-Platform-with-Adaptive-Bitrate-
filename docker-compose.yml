@@ -12,7 +12,7 @@ services:
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data
-    restart: unless-stopped
+    restart: unless-stopped 
 
   # 2. Redis: Our Metadata Cache (The Cheat Sheet)
   redis:
