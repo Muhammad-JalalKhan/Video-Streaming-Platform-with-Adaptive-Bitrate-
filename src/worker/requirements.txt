@@ -1,0 +1,4 @@
+confluent-kafka==2.3.0
+minio==7.2.4
+sqlalchemy
+psycopg2-binary

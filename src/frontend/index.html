@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NUSTFlix — Decentralized VOD Platform</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- HLS.js and Ethers.js -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+  
+  <!-- Plyr.io for the Premium Player UI -->
+  <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
+  <script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
+
+  <style>
+    :root {
+      --red:#E50914; --red2:#ff1a24; --gold:#f5c518;
+      --green:#00c878; --bg:#0a0a0a; --surface:#141414;
+      --card:#1c1c1c; --border:rgba(255,255,255,0.08);
+    }
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{background:var(--bg);color:#fff;font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden;}
+    ::-webkit-scrollbar{width:4px;height:4px;}
+    ::-webkit-scrollbar-track{background:transparent;}
+    ::-webkit-scrollbar-thumb{background:#333;border-radius:4px;}
+
+    /* NAV */
+    #navbar{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:14px 40px;transition:background 0.4s;}
+    #navbar.scrolled{background:rgba(10,10,10,0.98);box-shadow:0 1px 0 var(--border);}
+    .logo{font-family:'Bebas Neue',sans-serif;font-size:30px;color:var(--red);letter-spacing:3px;cursor:pointer;}
+    .nav-links{display:flex;gap:24px;}
+    .nav-links a{font-size:13px;color:rgba(255,255,255,0.55);text-decoration:none;transition:color 0.2s;cursor:pointer;}
+    .nav-links a:hover,.nav-links a.active{color:#fff;}
+    .nav-right{display:flex;align-items:center;gap:12px;}
+    .search-wrap{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:7px 12px;transition:border-color 0.2s;}
+    .search-wrap:focus-within{border-color:rgba(255,255,255,0.25);}
+    .search-wrap input{background:none;border:none;outline:none;color:#fff;font-size:13px;width:150px;font-family:'DM Sans',sans-serif;}
+    .search-wrap input::placeholder{color:#555;}
+    #wallet-btn{display:flex;align-items:center;gap:7px;background:rgba(229,9,20,0.14);border:1px solid rgba(229,9,20,0.4);color:#ff7070;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.2s;}
+    #wallet-btn:hover{background:rgba(229,9,20,0.28);}
+    #wallet-btn.connected{background:rgba(0,200,120,0.1);border-color:rgba(0,200,120,0.35);color:#00c878;}
+    .wdot{width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0;}
+    
+    /* HERO */
+    #hero{position:relative;height:92vh;min-height:560px;display:flex;align-items:flex-end;overflow:hidden;}
+    .hero-bg{position:absolute;inset:0;background:linear-gradient(135deg,#0d0010 0%,#140020 25%,#001525 60%,#0a0a0a 100%);}
+    .hero-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(229,9,20,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(229,9,20,0.04) 1px,transparent 1px);background-size:48px 48px;}
+    .hero-vig{position:absolute;inset:0;background:linear-gradient(0deg,#0a0a0a 0%,transparent 40%);}
+    .hero-content{position:relative;z-index:2;padding:0 40px 60px;max-width:680px;}
+    .hero-title{font-family:'Bebas Neue',sans-serif;font-size:72px;letter-spacing:3px;line-height:1;margin-bottom:14px;}
+    .hero-meta{display:flex;align-items:center;gap:14px;font-size:13px;color:rgba(255,255,255,0.5);margin-bottom:12px;}
+    .hero-desc{font-size:14px;color:rgba(255,255,255,0.58);line-height:1.7;margin-bottom:22px;max-width:500px;}
+    .btn-play{display:inline-flex;align-items:center;gap:9px;background:var(--red);color:#fff;border:none;border-radius:8px;padding:11px 26px;font-size:14px;font-weight:600;cursor:pointer;transition:background 0.2s;}
+    .btn-play:hover{background:var(--red2);}
+    .btn-ghost{display:inline-flex;align-items:center;gap:9px;background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.18);border-radius:8px;padding:11px 22px;font-size:14px;cursor:pointer;transition:background 0.2s;}
+
+    /* MAIN UI */
+    #main{padding:0 40px 60px;}
+    .wbar{display:flex;align-items:center;justify-content:space-between;background:linear-gradient(135deg,rgba(0,200,120,0.06),rgba(0,100,255,0.04));border:1px solid rgba(0,200,120,0.2);border-radius:12px;padding:14px 20px;margin-bottom:32px;}
+    .wicon{width:40px;height:40px;background:rgba(0,200,120,0.12);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;}
+    .sub-btn{background:rgba(229,9,20,0.14);border:1px solid rgba(229,9,20,0.4);color:#ff7070;border-radius:8px;padding:8px 16px;font-size:12px;font-weight:500;cursor:pointer;transition:all 0.2s;}
+    .pills button{padding:6px 16px;border-radius:20px;font-size:13px;border:1px solid rgba(255,255,255,0.12);background:transparent;color:#fff;cursor:pointer;margin-right:8px;}
+    .pills button.active{background:var(--red);border-color:var(--red);}
+    
+    /* CARDS */
+    .cards-row{display:flex;gap:12px;overflow-x:auto;padding-bottom:12px;margin-bottom:30px;}
+    .cards-row::-webkit-scrollbar{display:none;}
+    .vc{flex:0 0 160px;background:var(--card);border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:0.2s;}
+    .vc:hover{transform:scale(1.05);box-shadow:0 12px 30px rgba(0,0,0,0.7);}
+    .vc-thumb{height:200px;display:flex;align-items:center;justify-content:center;font-size:40px;position:relative;}
+    .vc-body{padding:10px;}
+    .tag{font-size:10px;padding:2px 7px;border-radius:4px;}
+    .tag.e{background:rgba(0,200,120,0.15);color:#00c878;}
+    
+    /* MODALS */
+    #player-modal, #detail-modal, #access-denied{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.96);align-items:center;justify-content:center;flex-direction:column;}
+    .open{display:flex !important;}
+    .pm-hdr{width:100%;max-width:960px;display:flex;justify-content:space-between;padding:16px 20px;}
+    .pm-wrap{width:100%;max-width:960px;aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden;border:1px solid var(--border);}
+    
+    /* Custom Plyr Theme */
+    .plyr--video .plyr__control--overlaid, .plyr--video .plyr__control[aria-expanded=true] { background: var(--red); }
+    .plyr--full-ui input[type=range] { color: var(--red); }
+  </style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav id="navbar">
+  <div class="logo">NUSTFLIX</div>
+  <div class="nav-links">
+    <a class="active">Home</a>
+    <a href="studio.html">Studio (Upload)</a>
+    <a>Series</a>
+    <a>Web3</a>
+  </div>
+  <div class="nav-right">
+    <button id="wallet-btn" onclick="connectWallet()">
+      <div class="wdot"></div>
+      <span id="wallet-text">Connect MetaMask</span>
+    </button>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <div class="hero-bg"></div><div class="hero-grid"></div><div class="hero-vig"></div>
+  <div class="hero-content">
+    <h1 class="hero-title" id="hero-title">CHAIN REACTION</h1>
+    <div class="hero-meta">
+      <span style="color:var(--gold)">★ 9.2</span> • <span>2025</span> • <span id="hero-genre">Thriller</span>
+    </div>
+    <p class="hero-desc" id="hero-desc">A decentralized future thriller where blockchain controls everything.</p>
+    <div class="flex gap-4">
+      <button class="btn-play" onclick="playVideo(featuredVideo)"><svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M5 3l14 9-14 9V3z"/></svg> Play Now</button>
+      <button class="btn-ghost" onclick="openDetail(featuredVideo)">More Info</button>
+    </div>
+  </div>
+</section>
+
+<!-- MAIN -->
+<div id="main">
+  <!-- Wallet bar -->
+  <div class="wbar">
+    <div class="flex items-center gap-4">
+      <div class="wicon">🦊</div>
+      <div>
+        <strong id="wallet-addr-display">Not Connected</strong><br>
+        <span class="text-xs text-gray-500">MetaMask · Hardhat Local</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-4">
+      <div id="sub-status" class="text-red-500 text-sm flex items-center gap-2">● No Subscription</div>
+      <button class="sub-btn" onclick="subscribeEth()">Subscribe · 0.01 ETH</button>
+    </div>
+  </div>
+
+  <!-- Library from API -->
+  <h2 class="text-2xl font-bebas tracking-wider mb-4 flex justify-between">
+    Your Library <span class="text-sm text-red-500 cursor-pointer" onclick="loadVideos()">Refresh ↻</span>
+  </h2>
+  <div class="cards-row" id="library-row"></div>
+</div>
+
+<!-- VIDEO PLAYER MODAL -->
+<div id="player-modal">
+  <div class="pm-hdr">
+    <div class="text-2xl font-bebas tracking-widest" id="pm-title">Now Playing</div>
+    <button class="text-white text-xl" onclick="closePlayer()">✕</button>
+  </div>
+  <div class="pm-wrap">
+    <video id="video-player" playsinline controls></video>
+  </div>
+</div>
+
+<!-- ACCESS DENIED MODAL -->
+<div id="access-denied">
+  <div class="bg-[#1c1c1c] border border-red-900 rounded-2xl p-10 text-center max-w-md">
+    <div class="text-5xl mb-4">🔐</div>
+    <h2 class="text-3xl font-bebas text-red-500 mb-2">VIP Access Required</h2>
+    <p class="text-gray-400 mb-6">This content is gated by the VOD smart contract. Subscribe to unlock.</p>
+    <div class="flex justify-center gap-4">
+      <button class="btn-play" onclick="subscribeEth()">Pay 0.01 ETH</button>
+      <button class="btn-ghost" onclick="document.getElementById('access-denied').classList.remove('open')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- DETAIL MODAL -->
+<div id="detail-modal" onclick="if(event.target.id==='detail-modal')this.classList.remove('open')">
+  <div class="bg-[#181818] border border-gray-800 rounded-2xl w-11/12 max-w-lg overflow-hidden relative">
+    <button class="absolute top-4 right-4 z-10 bg-black/50 rounded-full w-8 h-8" onclick="document.getElementById('detail-modal').classList.remove('open')">✕</button>
+    <div class="h-48 flex items-center justify-center text-7xl" id="dm-hero"></div>
+    <div class="p-6">
+      <h2 class="text-3xl font-bebas mb-2" id="dm-title"></h2>
+      <p class="text-gray-400 text-sm mb-4" id="dm-desc"></p>
+      <button class="btn-play w-full justify-center" id="dm-play-btn">Play Video</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── CONFIGURATION ──────────────────────────────────────────────
+const API_BASE   = 'http://localhost:8000';
+const MINIO_BASE = 'http://localhost:9000/videos';
+// !!! REPLACE THIS WITH YOUR DEPLOYED HARDHAT ADDRESS !!!
+const CONTRACT_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+const CONTRACT_ABI = ["function subscribe() payable", "function checkSubscription(address user) view returns (bool)"];
+
+// ── STATE ────────────────────────────────────────────────────
+let walletAddress=null, isSubscribed=false, provider=null, signer=null, contract=null;
+let allVideos=[], currentVideo=null, hlsInstance=null, plyrInstance=null;
+let featuredVideo={title:'Chain Reaction', genre:'Thriller', description:'Upload a video to see it here.', isEthGated:true};
+
+// ── INITIALIZE ────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', loadVideos);
+
+// ── LOAD VIDEOS ──────────────────────────────────────────────
+async function loadVideos(){
+  try {
+    const res = await fetch(`${API_BASE}/videos`);
+    const data = await res.json();
+    
+    allVideos = data.map((v, i) => ({
+      id: v.id, 
+      title: v.title || v.filename,
+      genre: v.genre || 'Web3',
+      year: '2025',
+      description: v.description || 'Uploaded via Blockflix Studio.',
+      bg: ['#1a0008','#000d1a','#001a0d'][i%3],
+      isEthGated: true,
+      stream_url: v.hls_url || `${MINIO_BASE}/${v.filename}/master.m3u8`
+    }));
+
+    if(allVideos.length > 0) {
+      featuredVideo = allVideos[allVideos.length - 1]; // Make newest video featured
+      document.getElementById('hero-title').textContent = featuredVideo.title;
+      document.getElementById('hero-desc').textContent = featuredVideo.description;
+    }
+    
+    renderLibrary();
+  } catch(err) {
+    console.error('API Offline - Start FastAPI Server', err);
+    document.getElementById('library-row').innerHTML = '<p class="text-gray-500">FastAPI Backend is offline. Run `uvicorn main:app`</p>';
+  }
+}
+
+function renderLibrary(){
+  const row = document.getElementById('library-row');
+  row.innerHTML = '';
+  allVideos.forEach(v => {
+    const d = document.createElement('div');
+    d.className = 'vc';
+    d.innerHTML = `
+      <div class="vc-thumb" style="background:${v.bg}">🎥</div>
+      <div class="vc-body">
+        <div class="font-medium text-sm truncate">${v.title}</div>
+        <div class="mt-1"><span class="tag e">ETH Gated</span></div>
+      </div>`;
+    d.onclick = () => openDetail(v);
+    row.appendChild(d);
+  });
+}
+
+// ── WEB3 LOGIC ───────────────────────────────────────────────
+async function connectWallet(){
+  if(!window.ethereum) return alert('MetaMask not detected.');
+  try {
+    provider = new ethers.BrowserProvider(window.ethereum);
+    await provider.send('eth_requestAccounts', []);
+    signer = await provider.getSigner();
+    walletAddress = await signer.getAddress();
+    
+    const shortAddr = `${walletAddress.slice(0,6)}...${walletAddress.slice(-4)}`;
+    document.getElementById('wallet-text').textContent = shortAddr;
+    document.getElementById('wallet-addr-display').textContent = shortAddr;
+    document.getElementById('wallet-btn').classList.add('connected');
+    
+    contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+    isSubscribed = await contract.checkSubscription(walletAddress);
+    updateSubUI();
+  } catch(e) { console.error("Wallet error", e); }
+}
+
+function updateSubUI(){
+  const el = document.getElementById('sub-status');
+  if(isSubscribed){
+    el.innerHTML = '● VIP Subscribed'; 
+    el.className = 'text-green-500 text-sm flex items-center gap-2';
+  } else {
+    el.innerHTML = '● No Subscription'; 
+    el.className = 'text-red-500 text-sm flex items-center gap-2';
+  }
+}
+
+async function subscribeEth(){
+  if(!walletAddress) { await connectWallet(); return; }
+  try {
+    const tx = await contract.subscribe({value: ethers.parseEther('0.01')});
+    document.getElementById('sub-status').innerHTML = 'Processing...';
+    await tx.wait();
+    isSubscribed = true;
+    updateSubUI();
+    document.getElementById('access-denied').classList.remove('open');
+    if(currentVideo) playVideo(currentVideo);
+  } catch(e) { alert('Transaction failed or cancelled.'); }
+}
+
+// ── MODALS & PLYR PLAYBACK ────────────────────────────────────
+function openDetail(v){
+  document.getElementById('dm-hero').style.background = v.bg;
+  document.getElementById('dm-hero').textContent = '🎬';
+  document.getElementById('dm-title').textContent = v.title;
+  document.getElementById('dm-desc').textContent = v.description;
+  document.getElementById('dm-play-btn').onclick = () => {
+    document.getElementById('detail-modal').classList.remove('open');
+    playVideo(v);
+  };
+  document.getElementById('detail-modal').classList.add('open');
+}
+
+function playVideo(v){
+  currentVideo = v;
+  if(v.isEthGated && (!walletAddress || !isSubscribed)){
+    document.getElementById('access-denied').classList.add('open');
+    return;
+  }
+  
+  document.getElementById('pm-title').textContent = v.title;
+  document.getElementById('player-modal').classList.add('open');
+  
+  const video = document.getElementById('video-player');
+  
+  // Reset players
+  if(hlsInstance){ hlsInstance.destroy(); hlsInstance=null; }
+  if(plyrInstance){ plyrInstance.destroy(); plyrInstance=null; }
+  
+  const plyrOptions = {
+    controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'settings', 'fullscreen'],
+    settings: ['quality', 'speed'],
+    theme: '#E50914'
+  };
+
+  if(Hls.isSupported()){
+    hlsInstance = new Hls();
+    hlsInstance.loadSource(v.stream_url);
+    hlsInstance.attachMedia(video);
+    
+    hlsInstance.on(Hls.Events.MANIFEST_PARSED, function () {
+      // Map qualities for Plyr menu (e.g. 1080p, 720p)
+      const availableQualities = hlsInstance.levels.map(l => l.height);
+      availableQualities.unshift(0); // Add 'Auto'
+      
+      plyrOptions.quality = {
+        default: 0,
+        options: availableQualities,
+        forced: true,
+        onChange: (newQuality) => {
+          if (newQuality === 0) hlsInstance.currentLevel = -1; // Auto
+          else hlsInstance.levels.forEach((l, idx) => { if(l.height === newQuality) hlsInstance.currentLevel = idx; });
+        }
+      };
+      
+      plyrInstance = new Plyr(video, plyrOptions);
+      video.play().catch(()=>{});
+    });
+  } else if(video.canPlayType('application/vnd.apple.mpegurl')){
+    video.src = v.stream_url;
+    plyrInstance = new Plyr(video, plyrOptions);
+    video.play();
+  }
+}
+
+function closePlayer(){
+  document.getElementById('player-modal').classList.remove('open');
+  const v = document.getElementById('video-player');
+  v.pause();
+  if(plyrInstance){ plyrInstance.destroy(); plyrInstance=null; }
+  if(hlsInstance){ hlsInstance.destroy(); hlsInstance=null; }
+  v.src = '';
+}
+</script>
+</body>
+</html>

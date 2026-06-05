@@ -58,6 +58,7 @@ services:
     restart: unless-stopped
 
   # 5. FFmpeg Worker (The Prep Chef)
+  
   ffmpeg_worker:
     build:
       context: ./src/worker
@@ -72,8 +73,20 @@ services:
       - MINIO_ACCESS_KEY=admin
       - MINIO_SECRET_KEY=password123
     restart: unless-stopped
-
+  postgres:
+    image: postgres:15-alpine
+    container_name: cc_postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password123
+      POSTGRES_DB: vod_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
 volumes:
   minio_data:
   redis_data:
   kafka_data:
+  postgres_data:

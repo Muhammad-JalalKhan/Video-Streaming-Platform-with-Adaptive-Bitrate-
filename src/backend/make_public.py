@@ -1,17 +1,15 @@
-import json
 from minio import Minio
+import json
 
-# 1. Connect to MinIO
-minio_client = Minio(
-    "localhost:9000", 
+# Connect to MinIO
+client = Minio(
+    "localhost:9000",
     access_key="admin",
     secret_key="password123",
     secure=False
-) 
+)
 
-BUCKET_NAME = "processed-videos"
-
-# 2. Define a "Public Read-Only" Policy
+# The standard AWS/MinIO policy to make a bucket completely readable to the public
 policy = {
     "Version": "2012-10-17",
     "Statement": [
@@ -19,14 +17,14 @@ policy = {
             "Effect": "Allow",
             "Principal": {"AWS": "*"},
             "Action": ["s3:GetObject"],
-            "Resource": [f"arn:aws:s3:::{BUCKET_NAME}/*"]
+            "Resource": ["arn:aws:s3:::processed-videos/*"]
         }
     ]
 }
 
-# 3. Apply the policy to the bucket
+# Apply the policy
 try:
-    minio_client.set_bucket_policy(BUCKET_NAME, json.dumps(policy))
-    print(f"SUCCESS! The '{BUCKET_NAME}' bucket is now PUBLIC.")
+    client.set_bucket_policy("processed-videos", json.dumps(policy))
+    print("✅ SUCCESS: 'processed-videos' is now PUBLIC!")
 except Exception as e:
-    print(f"Error: {e}")
+    print(f"❌ Error: {e}")
